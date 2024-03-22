@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  hezzl_db:
+    image: postgres:15.0
+    environment:
+      POSTGRES_DB: hezzl
+      POSTGRES_USER: hezzl_user
+      POSTGRES_PASSWORD: hezzl_db
+    ports:
+      - 5477:5477
+    command: -p 5477
+    restart: always
+    volumes:
+      - "~/hezzl/postgresql:/var/lib/postgresql/data"
+  redis:
+    container_name: redis
+    image: redis:alpine
+    restart: always
+    networks:
+      - default
+    ports:
+      - "6379:6379"
+    volumes:
+      - "~/hezzl/redis:/var/lib/redis/data"
+  nats:
+    image: nats:alpine
+    restart: always
+    networks:
+      - default
+    ports:
+      - "8222:8222"
+  clickhouse-server:
+    image: yandex/clickhouse-server
+    container_name: clickhouse-server
+    ports:
+      - '8123:8123'
+      - '9000:9000'
+    volumes:
+      - "~/hezzl/ch:/var/lib/clickhouse"
+  hezzl_app:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    image: hezzl_app:latest
+    restart: always
+    environment:
+      NATS_URL: nats:4222
+      REDIS_URL: redis:6379
+      CLICKHOUSE_DB_URL: http://clickhouse-server:8123/default
+      CLICKHOUSE_MIGRATION_URL: file://database/migration/clickhouse
+      DB_SOURCE: postgres://hezzl_db:5477/hezzl_database?sslmode=disable
+      MIGRATION_URL: file://database/migration/postgres
+      DATABASE_HOST: hezzl_db
+      DATABASE_USERNAME: hezzl_user
+      DATABASE_DB: hezzl
+      DATABASE_PORT: 5477
+      DATABASE_PASSWORD: hezzl_db
+    ports:
+      - 80:8080
+    depends_on:
+      - hezzl_db
+      - redis
+      - clickhouse-server
+      - nats
