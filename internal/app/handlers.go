@@ -42,20 +42,16 @@ func (s *HezzlWebService) createGood(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	good, err := s.store.PostgresRepository.GoodRepository.CreateGood(projectId, requestBody.Name)
+	result, err := s.manager.GoodManager.CreateGood(projectId, requestBody.Name)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		log.Print(err)
+		if errors.Is(err, manager.AlreadyExist) {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(fmt.Sprintf("good с projectId = %v уже существует", projectId)))
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Print(err)
+		}
 		return
-	}
-	result := dto.Good{
-		Id:          good.Id,
-		ProjectId:   good.ProjectId,
-		Name:        good.Name,
-		Description: good.Description.String,
-		Priority:    good.Priority,
-		Removed:     good.Removed,
-		CreatedAt:   good.CreatedAt,
 	}
 	err = json.NewEncoder(w).Encode(result)
 	if err != nil {
@@ -81,8 +77,8 @@ func (s *HezzlWebService) updateGood(w http.ResponseWriter, r *http.Request) {
 	result, err := s.manager.GoodManager.UpdateGood(id, projectId, requestBody)
 	if err != nil {
 		if errors.Is(err, manager.NotFound) {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(fmt.Sprintf("good с id=%v и projectId=%v не найден", id, projectId)))
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(dto.ErrorResponse{Code: 3, Message: "errors.good.notFound"})
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 			log.Print(err)
@@ -115,6 +111,16 @@ func (s *HezzlWebService) reprioritiize(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	result, err := s.manager.GoodManager.ReprioritiizeGood(id, projectId, requestBody.NewPriority)
+	if err != nil {
+		if errors.Is(err, manager.NotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(dto.ErrorResponse{Code: 3, Message: "errors.good.notFound"})
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Print(err)
+		}
+		return
+	}
 	err = json.NewEncoder(w).Encode(result)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -137,8 +143,8 @@ func (s *HezzlWebService) deleteGood(w http.ResponseWriter, r *http.Request) {
 	result, err := s.manager.GoodManager.DeleteGood(id, projectId)
 	if err != nil {
 		if errors.Is(err, manager.NotFound) {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(fmt.Sprintf("good с id=%v и projectId=%v не найден", id, projectId)))
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(dto.ErrorResponse{Code: 3, Message: "errors.good.notFound"})
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 			log.Print(err)

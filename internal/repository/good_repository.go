@@ -21,6 +21,19 @@ func (pt *PostgresContainerRepository) createGoodRepository(postgresDb *DbPostgr
 	}
 }
 
+func (repository *GoodRepository) GetGoodByProjectId(projectId int) (*goods.GoodEntity, error) {
+	repository.mu.RLock()
+	defer repository.mu.RUnlock()
+
+	good := goods.GoodEntity{}
+	err := repository.db.QueryRow("SELECT * FROM goods WHERE project_id = $1", projectId).Scan(&good.Id, &good.ProjectId, &good.Name, &good.Description, &good.Priority, &good.Removed, &good.CreatedAt)
+	if err != nil {
+		log.Printf("Не удалось получить good c projectId = %v", projectId)
+		return nil, err
+	}
+	return &good, nil
+}
+
 func (repository *GoodRepository) GetGood(id int, projectId int) (*goods.GoodEntity, error) {
 	repository.mu.RLock()
 	defer repository.mu.RUnlock()

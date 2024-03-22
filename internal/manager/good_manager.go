@@ -11,6 +11,7 @@ import (
 )
 
 var NotFound = errors.New("NotFound")
+var AlreadyExist = errors.New("AlreadyExist")
 
 type GoodManager struct {
 	GoodRepository  *repository.GoodRepository
@@ -24,6 +25,19 @@ func newGoodManager(GoodRepository *repository.GoodRepository, RedisRepository *
 		RedisRepository: RedisRepository,
 		NatsManager:     natsManager,
 	}
+}
+
+func (manager *GoodManager) GetGoodByProjectId(projectId int) (*goods.GoodEntity, error) {
+	good, err := manager.RedisRepository.GetGoodByProjectId(projectId)
+	if err == nil {
+		return good, nil
+	}
+	good, err = manager.GoodRepository.GetGoodByProjectId(projectId)
+	if err != nil {
+		return nil, NotFound
+	}
+	manager.RedisRepository.SetGoodProjectId(good)
+	return good, nil
 }
 
 func (manager *GoodManager) GetGood(id int, projectId int) (*goods.GoodEntity, error) {
@@ -76,6 +90,28 @@ func (manager *GoodManager) UpdateGood(id int, projectId int, requestBody dto.Up
 		EventTime:   time.Now(),
 	}
 	go manager.NatsManager.PublishLog(logMessage)
+	return &result, nil
+}
+
+func (manager *GoodManager) CreateGood(projectId int, name string) (*dto.Good, error) {
+	good, err := manager.GetGoodByProjectId(projectId)
+	if err == nil {
+		return nil, AlreadyExist
+	}
+	good, err = manager.GoodRepository.CreateGood(projectId, name)
+	if err != nil {
+		return nil, err
+	}
+	manager.RedisRepository.SetGood(good)
+	result := dto.Good{
+		Id:          good.Id,
+		ProjectId:   good.ProjectId,
+		Name:        good.Name,
+		Description: good.Description.String,
+		Priority:    good.Priority,
+		Removed:     good.Removed,
+		CreatedAt:   good.CreatedAt,
+	}
 	return &result, nil
 }
 
