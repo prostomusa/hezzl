@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"github.com/vmihailenco/msgpack/v5"
+	"log"
 	"time"
 )
 
@@ -24,13 +25,18 @@ func newNatsManager(repository *repository.ClickHouseRepository) *NatsManager {
 		NatsUrl:    natsUrl,
 	}
 	ticker := time.NewTicker(time.Minute)
-	go manager.updateLogsEveryMinute(ticker)
+	nc, _ := nats.Connect(manager.NatsUrl)
+	subscriber, err := nc.SubscribeSync(TopicName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	go manager.updateLogsEveryMinute(subscriber, ticker)
 	return manager
 }
 
 func (manager *NatsManager) PublishLog(logMessage clickhouse.ClickHouseLog) {
 	nc, err := nats.Connect(manager.NatsUrl)
-	defer nc.Close()
+	defer nc.Drain()
 	marshal, err := msgpack.Marshal(logMessage)
 	if err != nil {
 		return
@@ -41,21 +47,22 @@ func (manager *NatsManager) PublishLog(logMessage clickhouse.ClickHouseLog) {
 	}
 }
 
-func (manager *NatsManager) updateLogsEveryMinute(ticker *time.Ticker) {
+func (manager *NatsManager) updateLogsEveryMinute(subscriber *nats.Subscription, ticker *time.Ticker) {
 	for range ticker.C {
-		nc, err := nats.Connect(manager.NatsUrl)
-		defer nc.Close()
-		sub, err := nc.SubscribeSync(TopicName)
-		messages, err := sub.Fetch(1000)
-		if err == nil {
-			messageList := make([]clickhouse.ClickHouseLog, len(messages))
-			for i, v := range messages {
-				var logMessage clickhouse.ClickHouseLog
-				err = msgpack.Unmarshal(v.Data, &logMessage)
-				if err == nil {
-					messageList[i] = logMessage
-				}
+		messageList := make([]clickhouse.ClickHouseLog, 0)
+		for {
+			msg, err := subscriber.NextMsg(time.Second * 2)
+			if err != nil {
+				break
 			}
+			var logMessage clickhouse.ClickHouseLog
+			err = msgpack.Unmarshal(msg.Data, &logMessage)
+			if err == nil {
+				messageList = append(messageList, logMessage)
+				msg.Ack()
+			}
+		}
+		if len(messageList) > 0 {
 			manager.repository.InsertBatchLogs(messageList)
 		}
 	}

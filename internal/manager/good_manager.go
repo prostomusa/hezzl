@@ -112,6 +112,16 @@ func (manager *GoodManager) CreateGood(projectId int, name string) (*dto.Good, e
 		Removed:     good.Removed,
 		CreatedAt:   good.CreatedAt,
 	}
+	logMessage := clickhouse.ClickHouseLog{
+		Id:          good.Id,
+		ProjectId:   good.ProjectId,
+		Name:        good.Name,
+		Description: good.Description,
+		Priority:    good.Priority,
+		Removed:     good.Removed,
+		EventTime:   time.Now(),
+	}
+	go manager.NatsManager.PublishLog(logMessage)
 	return &result, nil
 }
 

@@ -61,7 +61,6 @@ func (repository *ClickHouseRepository) InsertBatchLogs(logs []model.ClickHouseL
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
 
-	fmt.Println(logs)
 	tx, err := repository.Db.Begin()
 	if err != nil {
 		return err
