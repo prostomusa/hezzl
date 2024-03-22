@@ -1,12 +1,11 @@
 CREATE TABLE IF NOT EXISTS goods (
-    id BIGSERIAL,
-    project_id BIGSERIAL,
+    id BIGSERIAL primary key,
+    project_id BIGINT REFERENCES projects(id) unique,
     name text not null,
     description text,
     priority integer not null,
     removed BOOLEAN not null DEFAULT FALSE,
-    created_at timestamp DEFAULT now(),
-    CONSTRAINT id_project_id_pk PRIMARY KEY (id, project_id)
+    created_at timestamp DEFAULT now()
 );
 
 create OR REPLACE function get_priority() returns int language plpgsql as
