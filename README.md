@@ -6,3 +6,5 @@
 docker build .
 docker-compose up
 ```
+
+# Приложение доступно по 80 порту
