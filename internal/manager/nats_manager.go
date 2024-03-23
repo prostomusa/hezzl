@@ -12,6 +12,7 @@ import (
 )
 
 const TopicName = "log"
+const BatchSize = 1000
 
 type NatsManager struct {
 	repository *repository.ClickHouseRepository
@@ -60,6 +61,9 @@ func (manager *NatsManager) updateLogsEveryMinute(subscriber *nats.Subscription,
 			if err == nil {
 				messageList = append(messageList, logMessage)
 				msg.Ack()
+			}
+			if len(messageList) > BatchSize {
+				break
 			}
 		}
 		if len(messageList) > 0 {
